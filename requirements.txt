@@ -1,0 +1,10 @@
+numpy
+scipy
+matplotlib
+numba
+tqdm
+sklearn
+pytest
+natsort
+glob
+pandas

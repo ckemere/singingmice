@@ -1,0 +1,14 @@
+Metadata-Version: 2.1
+Name: singingmice
+Version: 0.1.0
+Summary: Library for singing mice research
+Home-page: https://github.com/yfujis/singingmice
+Author: Yuki Fujishima
+Author-email: yfujishima1001@gmail.com
+Classifier: Development Status :: 2 - Pre-Alpha
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 2
+Classifier: Programming Language :: Python :: 2.7
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.4
+Classifier: Programming Language :: Python :: 3.5

@@ -1,0 +1,8 @@
+setup.py
+singingmice/__init__.py
+singingmice/song.py
+singingmice/utils.py
+singingmice.egg-info/PKG-INFO
+singingmice.egg-info/SOURCES.txt
+singingmice.egg-info/dependency_links.txt
+singingmice.egg-info/top_level.txt
