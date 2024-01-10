@@ -12,9 +12,14 @@ from typing import List, Tuple
 
 import numpy as np
 from numpy import inf, ndarray
-from scipy.io import wavfile
 
-from singingmice.utils import integers2slices
+from pandas import Timedelta, Timestamp
+import pandas as pd
+
+from scipy.io import wavfile
+from scipy.signal import stft
+
+from singingmice.utils import integers2slices, avifname_to_datetime
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +61,7 @@ class Song:
         Returns: TODO
         """
         if ref is None:
-            ref = self.wf[-self.rate // 2 :]
+            ref = self.wf[-self.rate // 4:]
         self.ref = ref
         logger.info("Added reference")
         return self
@@ -74,7 +79,8 @@ class Song:
         self.compute_notelens()
         return self
 
-    def compute_wavdecibel(self, window_len: int = 1000, window: str = "hanning"):
+    def compute_wavdecibel(self, window_len: int = 1000,
+                           window: str = "hanning"):
         """TODO: Docstring for compute_wavdecibel."""
         self.smo = smooth(abs(self.wf), window_len, window)
         smo_ref = smooth(abs(self.ref), window_len, window)
@@ -95,7 +101,6 @@ class Song:
             return self.dec
 
         return self
-
 
     def compute_notelens(self, return_result: bool = False):
         """Compute note lengths (s) from note positions
@@ -125,7 +130,8 @@ class Song:
             nperseg (int, optional): n_datapoints per segment. Defaults to 512.
             window (str, optional): type of window. Defaults to "hann".
             noverlap (int, optional): _description_. Defaults to None.
-            return_result (bool, optional): If True, returns f, t, z. Defaults to False.
+            return_result (bool, optional): If True, returns f, t, z.
+            Defaults to False.
 
         """
         if noverlap is None:
@@ -149,8 +155,8 @@ class Song:
         """
         Find local maximum indice from notes.
         """
-        self.peak_idxs = np.array([np.argmax(self.dec[note[0]:note[1]]) + note[0]
-                                  for note in self.notes])
+        self.peak_idxs = np.array([np.argmax(self.dec[n[0]:n[1]]) + n[0]
+                                  for n in self.notes])
         return self
 
     def find_notes_from_peakidxs(self):
@@ -169,6 +175,27 @@ class Song:
             self.notes: n_notes x 2. start and end indices for each note
         """
         self.notes = find_notes(self.dec, peak_thresholds)
+        return self
+
+    def _compute_onset_offset_with_start_ts(self):
+        """"""
+        try:
+            ondelta = Timedelta(seconds=self.notes[0][0] / self.rate)
+            self.onset_ts: Timestamp = self.start_ts + ondelta
+            offdelta = Timedelta(seconds=self.notes[-1][1] / self.rate)
+            self.offset_ts: Timestamp = self.start_ts + offdelta
+        except Exception as e:
+            logger.warning(e)
+            logger.warning("No notes. Onset and offset are not set.")
+        return self
+
+    def add_starttime_from_avifname(self, f: bool, head_num: int = 0):
+        fname = str(self.fpath).split("\\")[-1]
+        self.start_ts = avifname_to_datetime(fname, head_num, f)
+        start = self.start_ts
+        end = self.start_ts + Timedelta(seconds=self.wf.shape[0] / self.rate)
+        self.dt = pd.date_range(start=start, end=end, periods=self.wf.shape[0])
+        self._compute_onset_offset_with_start_ts()
         return self
 
 
@@ -210,10 +237,10 @@ def smooth(arr, window_len=1000, window="hanning", mode="same"):
 
     if window not in ["flat", "hanning", "hamming", "bartlett", "blackman"]:
         raise ValueError(
-            "Window is on of 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'"
+            "Window: 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'"
         )
 
-    s = np.r_[arr[window_len - 1 : 0 : -1], arr, arr[-2 : -window_len - 1 : -1]]
+    s = np.r_[arr[window_len - 1:0:-1], arr, arr[-2:-window_len - 1:-1]]
 
     if window == "flat":  # moving average
         w = np.ones(window_len, "d")
@@ -224,7 +251,7 @@ def smooth(arr, window_len=1000, window="hanning", mode="same"):
         y = np.convolve(w / w.sum(), s, mode=mode)
     except Exception as e:
         logger.error(e)
-    n_remove = arr[window_len - 1 : 0 : -1].shape[0]
+    n_remove = arr[window_len - 1:0:-1].shape[0]
     return y[n_remove:-n_remove]
 
 
@@ -242,10 +269,9 @@ def wave2decibel(
         return dec
     logger.info("Using noise_win to get noise...")
     logger.info("10 * np.log10(arr / arr[noise_win[0]:noise_win[1]].mean())")
-    dec = 20 * np.log10(arr / arr[noise_win[0] : noise_win[1]].mean())
+    dec = 20 * np.log10(arr / arr[noise_win[0]:noise_win[1]].mean())
     dec[dec == -inf] = 0
     return dec
-
 
 
 def read_song(fpath: Path, singer: int = 1, load: bool = True) -> Song:
